@@ -10,8 +10,9 @@ class DependencyScreen:
         self.cursor = cursor
 
     def draw(self):
-        max_flag_length = max(len(d.use_conditional) for d in self.cursor.deps)
-        for key, group in groupby(enumerate(self.cursor.deps), key=lambda t: t[1].use_conditional):
+        pkg = self.cursor.current
+        max_flag_length = max(len(d.use_conditional) for d in pkg.deps)
+        for key, group in groupby(enumerate(pkg.deps), key=lambda t: t[1].use_conditional):
             group = list(group)
             self.stdscr.addstr(group[0][0] + 2, 0, key)
             for i, dep in group:
@@ -38,7 +39,8 @@ class UseFlagScreen:
         self.cursor = cursor
 
     def draw(self):
-        for i, flag in enumerate(self.cursor.flags):
+        pkg = self.cursor.current
+        for i, flag in enumerate(pkg.IUSE):
             self.stdscr.addstr(i + 2, 0, flag)
 
     def interpret_keystroke(self, key, c):

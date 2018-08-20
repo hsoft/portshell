@@ -6,15 +6,15 @@ from curses import wrapper
 import portage
 from portage.dep import Atom
 
-from portshell.ui import UI
+from .ui import UI
+from .portage import Package, Portage
 
 
 def initialize():
     q = sys.argv[1] if len(sys.argv) > 1 else 'dev-lang/python'
-    db = portage.db['/']['porttree'].dbapi
     atom = Atom(q)
-    mylist = db.match(atom)
-    return portage.best(mylist)
+    mylist = Portage.porttree().match(atom)
+    return Package(portage.best(mylist))
 
 
 def main(stdscr, mainpkg):
