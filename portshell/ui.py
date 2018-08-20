@@ -11,7 +11,7 @@ class DependencyScreen:
 
     def draw(self):
         pkg = self.cursor.current
-        max_flag_length = max(len(d.use_conditional) for d in pkg.deps)
+        max_flag_length = max((len(d.use_conditional) for d in pkg.deps), default=0)
         for key, group in groupby(enumerate(pkg.deps), key=lambda t: t[1].use_conditional):
             group = list(group)
             self.stdscr.addstr(group[0][0] + 2, 0, key)

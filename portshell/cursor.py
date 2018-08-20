@@ -26,12 +26,13 @@ class PackageCursor:
             self.selindex -= 1
 
     def right(self):
-        self.stack.append(self.selection)
+        dep = self.selection
+        pkg = dep.get_package()
+        self.stack.append(pkg)
         self._update_info()
 
     def left(self):
         if len(self.stack) > 1:
-            to_select = self.stack.pop()
+            self.stack.pop()
             self._update_info()
-            self.selindex = self.current.deps.index(to_select)
 
