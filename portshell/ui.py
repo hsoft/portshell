@@ -2,7 +2,7 @@ import curses
 
 from gentoolkit.flag import get_flags
 
-from cursor import PackageCursor
+from .cursor import PackageCursor
 
 
 class DependencyScreen:

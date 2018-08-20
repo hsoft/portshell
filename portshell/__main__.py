@@ -6,7 +6,7 @@ from curses import wrapper
 import portage
 from portage.dep import Atom
 
-from ui import UI
+from portshell.ui import UI
 
 
 def initialize():
