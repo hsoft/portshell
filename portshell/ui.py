@@ -1,7 +1,5 @@
 import curses
 
-from gentoolkit.flag import get_flags
-
 from .cursor import PackageCursor
 
 
@@ -35,8 +33,7 @@ class UseFlagScreen:
         self.cursor = cursor
 
     def draw(self):
-        flags = get_flags(self.cursor.current.cpv)
-        for i, flag in enumerate(flags):
+        for i, flag in enumerate(self.cursor.flags):
             self.stdscr.addstr(i + 2, 0, flag)
 
     def interpret_keystroke(self, key, c):
@@ -70,5 +67,8 @@ class UI:
         while True:
             self.draw()
             key = self.stdscr.getch()
-            self.interpret_keystroke(key)
+            try:
+                self.interpret_keystroke(key)
+            except StopIteration:
+                break
 

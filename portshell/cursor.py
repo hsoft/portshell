@@ -1,3 +1,4 @@
+import portage
 from gentoolkit.dependencies import Dependencies
 from gentoolkit.query import Query
 
@@ -5,12 +6,14 @@ from gentoolkit.query import Query
 class PackageCursor:
     def __init__(self, root):
         self.stack = [root]
-        self._update_deps()
+        self._update_info()
 
-    def _update_deps(self):
+    def _update_info(self):
         deps = Dependencies(str(self.current))
         deps = deps.get_all_depends()
         self.deps = [Query(dep.atom).find_best() for dep in deps]
+        self.flags = portage.db['/']['porttree'].dbapi.aux_get(
+            self.current.cpv, ['IUSE'])[0].split()
         self.selindex = 0
 
     @property
@@ -34,11 +37,11 @@ class PackageCursor:
 
     def right(self):
         self.stack.append(self.selection)
-        self._update_deps()
+        self._update_info()
 
     def left(self):
         if len(self.stack) > 1:
             to_select = self.stack.pop()
-            self._update_deps()
+            self._update_info()
             self.selindex = self.deps.index(to_select)
 
