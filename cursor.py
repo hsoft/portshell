@@ -42,5 +42,3 @@ class PackageCursor:
             self._update_deps()
             self.selindex = self.deps.index(to_select)
 
-
-
