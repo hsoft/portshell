@@ -1,7 +1,6 @@
 # Convenience layer over portage API
 import portage
 from portage.dep import use_reduce, extract_affecting_use, isvalidatom, dep_getkey
-from gentoolkit.query import Query
 
 class Portage:
     @staticmethod
@@ -14,6 +13,11 @@ class Portage:
         raw = dbapi.aux_get(cpv, ('DEPEND', 'PDEPEND', 'RDEPEND'))
         return ' '.join(raw)
 
+    @staticmethod
+    def find_best(atom):
+        dbapi = Portage.porttree()
+        return dbapi.xmatch('bestmatch-visible', atom)
+
 
 class Package:
     def __init__(self, cpv):
@@ -23,7 +27,7 @@ class Package:
 
     @classmethod
     def from_atom(cls, atom):
-        return cls(str(Query(atom).find_best()))
+        return cls(Portage.find_best(atom))
 
     def __str__(self):
         return self.cpv
