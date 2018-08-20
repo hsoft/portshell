@@ -3,6 +3,15 @@ from gentoolkit.dependencies import Dependencies
 from gentoolkit.query import Query
 
 
+class Dependency:
+    def __init__(self, dep):
+        self.use_conditional = dep.use_conditional or ''
+        self.pkg = Query(dep.atom).find_best()
+
+    def __str__(self):
+        return str(self.pkg)
+
+
 class PackageCursor:
     def __init__(self, root):
         self.stack = [root]
@@ -10,8 +19,10 @@ class PackageCursor:
 
     def _update_info(self):
         deps = Dependencies(str(self.current))
-        deps = deps.get_all_depends()
-        self.deps = [Query(dep.atom).find_best() for dep in deps]
+        self.deps = sorted(
+            map(Dependency, deps.get_all_depends()),
+            key=lambda d: (d.use_conditional, str(d))
+        )
         self.flags = portage.db['/']['porttree'].dbapi.aux_get(
             self.current.cpv, ['IUSE'])[0].split()
         self.selindex = 0

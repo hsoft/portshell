@@ -1,4 +1,5 @@
 import curses
+from itertools import groupby
 
 from .cursor import PackageCursor
 
@@ -9,9 +10,13 @@ class DependencyScreen:
         self.cursor = cursor
 
     def draw(self):
-        for i, dep in enumerate(self.cursor.deps):
-            mode = curses.A_STANDOUT if i == self.cursor.selindex else 0
-            self.stdscr.addstr(i + 2, 0, f"{dep}", mode)
+        max_flag_length = max(len(d.use_conditional) for d in self.cursor.deps)
+        for key, group in groupby(enumerate(self.cursor.deps), key=lambda t: t[1].use_conditional):
+            group = list(group)
+            self.stdscr.addstr(group[0][0] + 2, 0, key)
+            for i, dep in group:
+                mode = curses.A_STANDOUT if i == self.cursor.selindex else 0
+                self.stdscr.addstr(i + 2, max_flag_length + 1, f"{dep}", mode)
 
     def interpret_keystroke(self, key, c):
         if key == curses.KEY_DOWN:
