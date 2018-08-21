@@ -1,6 +1,6 @@
 # Convenience layer over portage API
 import portage
-from portage.dep import use_reduce, extract_affecting_use, isvalidatom, dep_getkey
+from portage.dep import use_reduce, isvalidatom, dep_getkey, dep_getslot
 
 class Portage:
     @staticmethod
@@ -51,9 +51,11 @@ class Package:
     def deps(self):
         if self._deps is None:
             depstring = Portage.get_depstring(self.cpv)
-            deps = filter(isvalidatom, use_reduce(depstring, matchall=True, flat=True))
-            deps = {Dependency(d, depstring) for d in deps}
-            self._deps = sorted(deps, key=lambda d: (d.use_conditional, d.cp))
+            enabled_flags = Portage.enabled_use_flags(self.cpv)
+            all_deps = filter(isvalidatom, use_reduce(depstring, matchall=True, flat=True))
+            active_deps = set(use_reduce(depstring, uselist=enabled_flags, flat=True))
+            deps = {Dependency(d, active=(d in active_deps)) for d in all_deps}
+            self._deps = sorted(deps)
         return self._deps
 
     @property
@@ -66,21 +68,31 @@ class Package:
 
 
 class Dependency:
-    def __init__(self, atom, depstring):
-        self.cp = dep_getkey(atom)
-        self.use_conditional = '/'.join(extract_affecting_use(depstring, atom))
+    def __init__(self, atom, active):
+        cp = dep_getkey(atom)
+        slot = dep_getslot(atom)
+        if slot and slot not in {'*', '='}:
+            self.cps = f'{cp}:{slot}'
+        else:
+            self.cps = cp
+        self.active = active
 
     def __str__(self):
-        return self.cp
+        return self.cps
+
+    __repr__ = __str__
 
     def __eq__(self, other):
-        return self.cp == other.cp
+        return self.cps == other.cps
+
+    def __lt__(self, other):
+        return self.cps < other.cps
 
     def __hash__(self):
-        return hash(self.cp)
+        return hash(self.cps)
 
     def get_package(self):
-        return Package.from_atom(self.cp)
+        return Package.from_atom(self.cps)
 
 
 class Flag:

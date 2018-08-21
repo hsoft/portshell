@@ -1,23 +1,30 @@
 import curses
-from itertools import groupby
 
 from .cursor import PackageCursor
 
 
-class DependencyScreen:
+class Screen:
     def __init__(self, stdscr, cursor):
         self.stdscr = stdscr
         self.cursor = cursor
+        self.statusline = ''
 
     def draw(self):
+        raise NotImplementedError()
+
+    def interpret_keystroke(self, key, c):
+        return False
+
+
+class DependencyScreen(Screen):
+    def draw(self):
         pkg = self.cursor.current
-        max_flag_length = max((len(d.use_conditional) for d in pkg.deps), default=0)
-        for key, group in groupby(enumerate(pkg.deps), key=lambda t: t[1].use_conditional):
-            group = list(group)
-            self.stdscr.addstr(group[0][0] + 2, 0, key)
-            for i, dep in group:
-                mode = curses.A_STANDOUT if i == self.cursor.selindex else 0
-                self.stdscr.addstr(i + 2, max_flag_length + 1, f"{dep}", mode)
+        active = [d for d in pkg.deps if d.active]
+        inactive_count = len(pkg.deps) - len(active)
+        for i, dep in enumerate(active):
+            mode = curses.A_STANDOUT if i == self.cursor.selindex else 0
+            self.stdscr.addstr(i + 2, 0, f"{dep}", mode)
+        self.statusline = f"{inactive_count} inactive package(s)"
 
     def interpret_keystroke(self, key, c):
         if key == curses.KEY_DOWN:
@@ -33,19 +40,13 @@ class DependencyScreen:
         return True
 
 
-class UseFlagScreen:
-    def __init__(self, stdscr, cursor):
-        self.stdscr = stdscr
-        self.cursor = cursor
-
+class UseFlagScreen(Screen):
     def draw(self):
         pkg = self.cursor.current
         for i, flag in enumerate(pkg.IUSE):
             mode = curses.A_BOLD if flag.is_enabled else 0
             self.stdscr.addstr(i + 2, 0, str(flag), mode)
 
-    def interpret_keystroke(self, key, c):
-        return False
 
 
 class UI:
@@ -55,9 +56,11 @@ class UI:
         self.screen = DependencyScreen(self.stdscr, self.cursor)
 
     def draw(self):
+        maxy, _ = self.stdscr.getmaxyx()
         self.stdscr.clear()
         self.stdscr.addstr(0, 0, f"Current package: {self.cursor.current}")
         self.screen.draw()
+        self.stdscr.addstr(maxy-1, 0, self.screen.statusline)
         self.stdscr.refresh()
 
     def interpret_keystroke(self, key):
