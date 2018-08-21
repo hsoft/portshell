@@ -16,37 +16,69 @@ class Screen:
         return False
 
 
-class DependencyScreen(Screen):
+class SelectableScreen(Screen):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.selected_index = 0
+
+    def interpret_keystroke(self, key, c):
+        if key == curses.KEY_DOWN:
+            self.down()
+        elif key == curses.KEY_UP:
+            self.up()
+        else:
+            return False
+        return True
+
+    def selectable_item_count(self):
+        return 0
+
+    def down(self):
+        if self.selected_index < self.selectable_item_count() - 1:
+            self.selected_index += 1
+
+    def up(self):
+        if self.selected_index > 0:
+            self.selected_index -= 1
+
+
+class DependencyScreen(SelectableScreen):
     def draw(self):
         pkg = self.cursor.current
         active = [d for d in pkg.deps if d.active]
         inactive_count = len(pkg.deps) - len(active)
         for i, dep in enumerate(active):
-            mode = curses.A_STANDOUT if i == self.cursor.selindex else 0
+            mode = curses.A_STANDOUT if i == self.selected_index else 0
             self.stdscr.addstr(i + 2, 0, f"{dep}", mode)
         self.statusline = f"{inactive_count} inactive package(s)"
 
     def interpret_keystroke(self, key, c):
-        if key == curses.KEY_DOWN:
-            self.cursor.down()
-        elif key == curses.KEY_UP:
-            self.cursor.up()
-        elif key == curses.KEY_RIGHT:
-            self.cursor.right()
+        if super().interpret_keystroke(key, c):
+            return True
+        if key == curses.KEY_RIGHT:
+            self.cursor.enter(self.selected_index)
         elif key == curses.KEY_LEFT:
-            self.cursor.left()
+            self.cursor.go_back()
         else:
             return False
         return True
 
+    def selectable_item_count(self):
+        pkg = self.cursor.current
+        return len([d for d in pkg.deps if d.active])
 
-class UseFlagScreen(Screen):
+
+class UseFlagScreen(SelectableScreen):
     def draw(self):
         pkg = self.cursor.current
         for i, flag in enumerate(pkg.IUSE):
             mode = curses.A_BOLD if flag.is_enabled else 0
+            if i == self.selected_index:
+                mode |= curses.A_STANDOUT
             self.stdscr.addstr(i + 2, 0, str(flag), mode)
 
+    def selectable_item_count(self):
+        return len(self.cursor.current.IUSE)
 
 
 class UI:

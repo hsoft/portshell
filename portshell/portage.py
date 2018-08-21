@@ -70,8 +70,10 @@ class Package:
 class Dependency:
     def __init__(self, atom, active):
         cp = dep_getkey(atom)
-        slot = dep_getslot(atom)
-        if slot and slot not in {'*', '='}:
+        slot = dep_getslot(atom) or ''
+        if slot.endswith('='):
+            slot = slot[:-1]
+        if slot and slot not in {'*', '0'}:
             self.cps = f'{cp}:{slot}'
         else:
             self.cps = cp
