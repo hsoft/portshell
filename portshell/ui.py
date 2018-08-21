@@ -1,12 +1,10 @@
 import curses
 
-from .cursor import PackageCursor
-
 
 class Screen:
-    def __init__(self, stdscr, cursor):
+    def __init__(self, stdscr, app):
         self.stdscr = stdscr
-        self.cursor = cursor
+        self.app = app
         self.statusline = ''
 
     def draw(self):
@@ -44,11 +42,11 @@ class SelectableScreen(Screen):
 
 class DependencyScreen(SelectableScreen):
     def _get_active_deps(self):
-        pkg = self.cursor.current
+        pkg = self.app.current
         return [d for d in pkg.deps if d.active]
 
     def draw(self):
-        pkg = self.cursor.current
+        pkg = self.app.current
         active = self._get_active_deps()
         inactive_count = len(pkg.deps) - len(active)
         for i, dep in enumerate(active):
@@ -62,10 +60,10 @@ class DependencyScreen(SelectableScreen):
         if key == curses.KEY_RIGHT:
             active = self._get_active_deps()
             if active:
-                self.cursor.enter(active[self.selected_index])
+                self.app.enter(active[self.selected_index])
                 self.selected_index = 0
         elif key == curses.KEY_LEFT:
-            self.cursor.go_back()
+            self.app.go_back()
         else:
             return False
         return True
@@ -76,7 +74,7 @@ class DependencyScreen(SelectableScreen):
 
 class UseFlagScreen(SelectableScreen):
     def draw(self):
-        pkg = self.cursor.current
+        pkg = self.app.current
         maxlen = 0
         for i, flag in enumerate(pkg.IUSE):
             mode = curses.A_BOLD if flag.is_enabled else 0
@@ -91,40 +89,4 @@ class UseFlagScreen(SelectableScreen):
                 self.stdscr.addstr(i + 2, maxlen + 1, str(dep))
 
     def selectable_item_count(self):
-        return len(self.cursor.current.IUSE)
-
-
-class UI:
-    def __init__(self, stdscr, pkg):
-        self.stdscr = stdscr
-        self.cursor = PackageCursor(pkg)
-        self.screen = DependencyScreen(self.stdscr, self.cursor)
-
-    def draw(self):
-        maxy, _ = self.stdscr.getmaxyx()
-        self.stdscr.clear()
-        self.stdscr.addstr(0, 0, f"Current package: {self.cursor.current}")
-        self.screen.draw()
-        self.stdscr.addstr(maxy-1, 0, self.screen.statusline)
-        self.stdscr.refresh()
-
-    def interpret_keystroke(self, key):
-        c = chr(key).lower()
-        if self.screen.interpret_keystroke(key, c):
-            return
-        if c == 'q':
-            raise StopIteration()
-        elif c == 'u':
-            self.screen = UseFlagScreen(self.stdscr, self.cursor)
-        elif c == 'd':
-            self.screen = DependencyScreen(self.stdscr, self.cursor)
-
-    def runloop(self):
-        while True:
-            self.draw()
-            key = self.stdscr.getch()
-            try:
-                self.interpret_keystroke(key)
-            except StopIteration:
-                break
-
+        return len(self.app.current.IUSE)

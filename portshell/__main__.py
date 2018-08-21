@@ -6,7 +6,7 @@ from curses import wrapper
 import portage
 from portage.dep import Atom
 
-from .ui import UI
+from .app import App
 from .portage import Package, Portage
 
 
@@ -18,8 +18,8 @@ def initialize():
 
 
 def main(stdscr, mainpkg):
-    ui = UI(stdscr, mainpkg)
-    ui.runloop()
+    app = App(stdscr, mainpkg)
+    app.runloop()
 
 
 if __name__ == '__main__':
