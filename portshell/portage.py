@@ -47,6 +47,12 @@ class Package:
     def __str__(self):
         return self.cpv
 
+    def deps_affected_by_flag(self, flag):
+        depstring = Portage.get_depstring(self.cpv)
+        base_deps = set(filter(isvalidatom, use_reduce(depstring, flat=True)))
+        deps = set(filter(isvalidatom, use_reduce(depstring, uselist=[flag.name], flat=True)))
+        return sorted(map(Dependency, deps - base_deps))
+
     @property
     def deps(self):
         if self._deps is None:
@@ -68,7 +74,7 @@ class Package:
 
 
 class Dependency:
-    def __init__(self, atom, active):
+    def __init__(self, atom, active=False):
         cp = dep_getkey(atom)
         slot = dep_getslot(atom) or ''
         if slot.endswith('='):

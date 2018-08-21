@@ -71,11 +71,18 @@ class DependencyScreen(SelectableScreen):
 class UseFlagScreen(SelectableScreen):
     def draw(self):
         pkg = self.cursor.current
+        maxlen = 0
         for i, flag in enumerate(pkg.IUSE):
             mode = curses.A_BOLD if flag.is_enabled else 0
             if i == self.selected_index:
                 mode |= curses.A_STANDOUT
-            self.stdscr.addstr(i + 2, 0, str(flag), mode)
+            s = str(flag)
+            maxlen = max(len(s), maxlen)
+            self.stdscr.addstr(i + 2, 0, s, mode)
+        if pkg.IUSE:
+            deps = pkg.deps_affected_by_flag(pkg.IUSE[self.selected_index])
+            for i, dep in enumerate(deps):
+                self.stdscr.addstr(i + 2, maxlen + 1, str(dep))
 
     def selectable_item_count(self):
         return len(self.cursor.current.IUSE)
