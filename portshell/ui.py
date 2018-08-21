@@ -43,9 +43,13 @@ class SelectableScreen(Screen):
 
 
 class DependencyScreen(SelectableScreen):
+    def _get_active_deps(self):
+        pkg = self.cursor.current
+        return [d for d in pkg.deps if d.active]
+
     def draw(self):
         pkg = self.cursor.current
-        active = [d for d in pkg.deps if d.active]
+        active = self._get_active_deps()
         inactive_count = len(pkg.deps) - len(active)
         for i, dep in enumerate(active):
             mode = curses.A_STANDOUT if i == self.selected_index else 0
@@ -56,7 +60,10 @@ class DependencyScreen(SelectableScreen):
         if super().interpret_keystroke(key, c):
             return True
         if key == curses.KEY_RIGHT:
-            self.cursor.enter(self.selected_index)
+            active = self._get_active_deps()
+            if active:
+                self.cursor.enter(active[self.selected_index])
+                self.selected_index = 0
         elif key == curses.KEY_LEFT:
             self.cursor.go_back()
         else:
@@ -64,8 +71,7 @@ class DependencyScreen(SelectableScreen):
         return True
 
     def selectable_item_count(self):
-        pkg = self.cursor.current
-        return len([d for d in pkg.deps if d.active])
+        return len(self._get_active_deps())
 
 
 class UseFlagScreen(SelectableScreen):
