@@ -41,7 +41,8 @@ class UseFlagScreen:
     def draw(self):
         pkg = self.cursor.current
         for i, flag in enumerate(pkg.IUSE):
-            self.stdscr.addstr(i + 2, 0, flag)
+            mode = curses.A_BOLD if flag.is_enabled else 0
+            self.stdscr.addstr(i + 2, 0, str(flag), mode)
 
     def interpret_keystroke(self, key, c):
         return False

@@ -18,6 +18,21 @@ class Portage:
         dbapi = Portage.porttree()
         return dbapi.xmatch('bestmatch-visible', atom)
 
+    @staticmethod
+    def system_use_flags():
+        return set(portage.settings['USE'].split())
+
+    @staticmethod
+    def enabled_use_flags(cpv):
+        settings = Portage.porttree().settings
+        try:
+            settings.unlock()
+            settings.setcpv(cpv, mydb=portage.portdb)
+            return set(portage.settings['PORTAGE_USE'].split())
+        finally:
+            settings.reset()
+            settings.lock()
+
 
 class Package:
     def __init__(self, cpv):
@@ -44,7 +59,9 @@ class Package:
     @property
     def IUSE(self):
         if self._IUSE is None:
-            self._IUSE = Portage.porttree().aux_get(self.cpv, ['IUSE'])[0].split()
+            IUSE = Portage.porttree().aux_get(self.cpv, ['IUSE'])[0].split()
+            enabled_flags = Portage.enabled_use_flags(self.cpv)
+            self._IUSE = [Flag.from_iuse(f, enabled_flags) for f in IUSE]
         return self._IUSE
 
 
@@ -64,3 +81,22 @@ class Dependency:
 
     def get_package(self):
         return Package.from_atom(self.cp)
+
+
+class Flag:
+    def __init__(self, name, is_defaulted, is_enabled):
+        self.name = name
+        self.is_defaulted = is_defaulted
+        self.is_enabled = is_enabled
+
+    @classmethod
+    def from_iuse(cls, iuse_str, enabled_flags):
+        is_defaulted = iuse_str.startswith('+')
+        if is_defaulted:
+            iuse_str = iuse_str[1:]
+        is_enabled = iuse_str in enabled_flags
+        return cls(iuse_str, is_defaulted, is_enabled)
+
+    def __str__(self):
+        return self.name
+
