@@ -10,6 +10,8 @@ from .app import App
 from .portage import PackageVersion, Portage
 
 
+app = None
+
 def initialize():
     q = sys.argv[1] if len(sys.argv) > 1 else 'dev-lang/python'
     atom = Atom(q)
@@ -18,9 +20,15 @@ def initialize():
 
 
 def main(stdscr, mainpkg):
+    global app
     app = App(stdscr, mainpkg)
     app.runloop()
 
 
 if __name__ == '__main__':
-    wrapper(main, initialize())
+    try:
+        wrapper(main, initialize())
+    except Exception:
+        import pdb
+        pdb.set_trace()
+        raise
