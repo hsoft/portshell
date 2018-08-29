@@ -1,5 +1,7 @@
 import curses
 
+from .util import tableize
+
 
 class Screen:
     def __init__(self, stdscr, app):
@@ -49,17 +51,17 @@ class DependencyScreen(SelectableScreen):
         pkg = self.app.current
         active = self._get_active_deps()
         inactive_count = len(pkg.deps) - len(active)
-        for i, dep in enumerate(active):
-            mode = curses.A_STANDOUT if i == self.selected_index else 0
+        rows = [("Package", "Installed", "Best")]
+        for dep in active:
             best = dep.get_package()
             installed = dep.get_installed()
-            extra = ''
-            if installed:
-                if installed.version != best.version:
-                    extra = f" ({installed.version} -> {best.version})"
-            else:
-                extra = " (new)"
-            self.stdscr.addstr(i + 2, 0, f"{dep.cps}{extra}", mode)
+            bv = best.version
+            iv = installed.version if installed else ''
+            rows.append((dep.cps, iv, bv))
+        for i, line in enumerate(tableize(rows)):
+            # first row is header, so we do (i - 1)
+            mode = curses.A_STANDOUT if (i - 1) == self.selected_index else 0
+            self.stdscr.addstr(i + 2, 0, line, mode)
         self.statusline = f"{inactive_count} inactive package(s)"
 
     def interpret_keystroke(self, key, c):
