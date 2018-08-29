@@ -1,11 +1,16 @@
 # Convenience layer over portage API
 import portage
 from portage.dep import use_reduce, isvalidatom, dep_getkey, dep_getslot
+from portage.versions import catpkgsplit
 
 class Portage:
     @staticmethod
     def porttree():
         return portage.db['/']['porttree'].dbapi
+
+    @staticmethod
+    def vartree():
+        return portage.db['/']['vartree'].dbapi
 
     @staticmethod
     def get_depstring(cpv):
@@ -17,6 +22,12 @@ class Portage:
     def find_best(atom):
         dbapi = Portage.porttree()
         return dbapi.xmatch('bestmatch-visible', atom)
+
+    @staticmethod
+    def find_installed(atom):
+        dbapi = Portage.vartree()
+        matches = dbapi.match(atom)
+        return matches[0] if matches else None
 
     @staticmethod
     def system_use_flags():
@@ -34,7 +45,7 @@ class Portage:
             settings.lock()
 
 
-class Package:
+class PackageVersion:
     def __init__(self, cpv):
         self.cpv = cpv
         self._deps = None
@@ -72,9 +83,15 @@ class Package:
             self._IUSE = [Flag.from_iuse(f, enabled_flags) for f in IUSE]
         return self._IUSE
 
+    @property
+    def version(self):
+        _, _, v, r = catpkgsplit(self.cpv)
+        return f'{v}-{r}'
+
 
 class Dependency:
     def __init__(self, atom, active=False):
+        self.atom = atom
         cp = dep_getkey(atom)
         slot = dep_getslot(atom) or ''
         if slot.endswith('='):
@@ -99,8 +116,15 @@ class Dependency:
     def __hash__(self):
         return hash(self.cps)
 
+    def get_installed(self):
+        cpv = Portage.find_installed(self.atom)
+        if cpv:
+            return PackageVersion(cpv)
+        else:
+            return None
+
     def get_package(self):
-        return Package.from_atom(self.cps)
+        return PackageVersion.from_atom(self.atom)
 
 
 class Flag:

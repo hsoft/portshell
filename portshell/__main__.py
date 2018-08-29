@@ -7,14 +7,14 @@ import portage
 from portage.dep import Atom
 
 from .app import App
-from .portage import Package, Portage
+from .portage import PackageVersion, Portage
 
 
 def initialize():
     q = sys.argv[1] if len(sys.argv) > 1 else 'dev-lang/python'
     atom = Atom(q)
     mylist = Portage.porttree().match(atom)
-    return Package(portage.best(mylist))
+    return PackageVersion(portage.best(mylist))
 
 
 def main(stdscr, mainpkg):

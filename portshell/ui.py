@@ -51,7 +51,15 @@ class DependencyScreen(SelectableScreen):
         inactive_count = len(pkg.deps) - len(active)
         for i, dep in enumerate(active):
             mode = curses.A_STANDOUT if i == self.selected_index else 0
-            self.stdscr.addstr(i + 2, 0, f"{dep}", mode)
+            best = dep.get_package()
+            installed = dep.get_installed()
+            extra = ''
+            if installed:
+                if installed.version != best.version:
+                    extra = f" ({installed.version} -> {best.version})"
+            else:
+                extra = " (new)"
+            self.stdscr.addstr(i + 2, 0, f"{dep.cps}{extra}", mode)
         self.statusline = f"{inactive_count} inactive package(s)"
 
     def interpret_keystroke(self, key, c):
