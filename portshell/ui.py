@@ -55,7 +55,7 @@ class DependencyScreen(SelectableScreen):
         for dep in active:
             best = dep.get_package()
             installed = dep.get_installed()
-            bv = best.version
+            bv = best.version if best else ''
             iv = installed.version if installed else ''
             rows.append((dep.cps, iv, bv))
         for i, line in enumerate(tableize(rows)):

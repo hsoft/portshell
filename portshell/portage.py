@@ -53,7 +53,11 @@ class PackageVersion:
 
     @classmethod
     def from_atom(cls, atom):
-        return cls(Portage.find_best(atom))
+        cpv = Portage.find_best(atom)
+        if cpv:
+            return cls(cpv)
+        else:
+            return None
 
     def __str__(self):
         return self.cpv
