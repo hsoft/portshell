@@ -77,10 +77,13 @@ def resolve_deps_anyof(deplist):
 
 
 def deps_from_depstring(depstring, use_flags=None):
-    matchall = bool(use_flags)
+    # match all if use flags are empty
+    matchall = not bool(use_flags)
     use_flags = use_flags or []
-    all_deps = use_reduce(depstring, uselist=use_flags, matchall=matchall)
-    return list(resolve_deps_anyof(all_deps))
+    deps = use_reduce(depstring, uselist=use_flags, matchall=matchall)
+    # ignore blocker deps
+    deps = (d for d in resolve_deps_anyof(deps) if not d.startswith('!'))
+    return list(deps)
 
 
 class PackageVersion:
