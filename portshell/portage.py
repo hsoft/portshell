@@ -129,6 +129,8 @@ class PackageStatus(Enum):
     New = 2
     Updated = 3
     NotVisible = 4
+    # De-selected by use flags
+    Deselected = 5
 
 
 class PackageVersion:
@@ -237,7 +239,9 @@ class Dependency:
 
     @property
     def status(self):
-        if not self.best:
+        if not self.active:
+            return PackageStatus.Deselected
+        elif not self.best:
             return PackageStatus.NotVisible
         elif not self.installed:
             return PackageStatus.New

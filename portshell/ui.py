@@ -49,46 +49,46 @@ class DependencyScreen(SelectableScreen):
         PackageStatus.New,
         PackageStatus.Updated,
         PackageStatus.Unchanged,
+        PackageStatus.Deselected,
     ]
     STATUS_ORDER_MAP = {v: i for i, v in enumerate(STATUS_ORDER)}
+    STATUS_DISPLAY = {
+        PackageStatus.Unchanged: '',
+        PackageStatus.New: 'N',
+        PackageStatus.Updated: 'U',
+        PackageStatus.NotVisible: '~',
+        PackageStatus.Deselected: 'H',
+    }
 
-    def _get_active_deps(self):
+    def _get_deps(self):
         def sort_key(dep):
             return self.STATUS_ORDER_MAP[dep.status]
 
         pkg = self.app.current
-        return sorted((d for d in pkg.deps if d.active), key=sort_key)
+        return sorted(pkg.deps, key=sort_key)
 
     def _get_row(self, dep):
         bv = dep.best.version if dep.best else ''
         iv = dep.installed.version if dep.installed else ''
-        status = {
-            PackageStatus.Unchanged: '',
-            PackageStatus.New: 'N',
-            PackageStatus.Updated: 'U',
-            PackageStatus.NotVisible: '~',
-        }[dep.status]
+        status = self.STATUS_DISPLAY[dep.status]
         deps = dep.best.affected_deep_deps
         depcount = str(len(deps)) if deps is not None else '?'
         return (status, dep.cps, iv, bv, depcount)
 
     def draw(self):
-        pkg = self.app.current
-        active = self._get_active_deps()
-        inactive_count = len(pkg.deps) - len(active)
+        active = self._get_deps()
         rows = [("S", "Package", "Installed", "Best", "Aff deps")]
         rows.extend(map(self._get_row, active))
         for i, line in enumerate(tableize(rows)):
             # first row is header, so we do (i - 1)
             mode = curses.A_STANDOUT if (i - 1) == self.selected_index else 0
             self.stdscr.addstr(i + 2, 0, line, mode)
-        self.statusline = f"{inactive_count} inactive package(s)"
 
     def interpret_keystroke(self, key, c):
         if super().interpret_keystroke(key, c):
             return True
         if key == curses.KEY_RIGHT:
-            active = self._get_active_deps()
+            active = self._get_deps()
             if active:
                 self.app.enter(active[self.selected_index])
                 self.selected_index = 0
@@ -99,7 +99,7 @@ class DependencyScreen(SelectableScreen):
         return True
 
     def selectable_item_count(self):
-        return len(self._get_active_deps())
+        return len(self._get_deps())
 
 
 class UseFlagScreen(SelectableScreen):
