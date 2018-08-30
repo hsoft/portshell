@@ -36,8 +36,7 @@ class App:
                 break
 
     def enter(self, dep):
-        pkg = dep.get_package()
-        self.stack.append(pkg)
+        self.stack.append(dep.best)
 
     def go_back(self):
         if len(self.stack) > 1:

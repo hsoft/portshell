@@ -1,5 +1,6 @@
 import curses
 
+from .portage import PackageStatus
 from .util import tableize
 
 
@@ -43,21 +44,39 @@ class SelectableScreen(Screen):
 
 
 class DependencyScreen(SelectableScreen):
+    STATUS_ORDER = [
+        PackageStatus.NotVisible,
+        PackageStatus.New,
+        PackageStatus.Updated,
+        PackageStatus.Unchanged,
+    ]
+    STATUS_ORDER_MAP = {v: i for i, v in enumerate(STATUS_ORDER)}
+
     def _get_active_deps(self):
+        def sort_key(dep):
+            return self.STATUS_ORDER_MAP[dep.status]
+
         pkg = self.app.current
-        return [d for d in pkg.deps if d.active]
+        return sorted((d for d in pkg.deps if d.active), key=sort_key)
+
+    def _get_row(self, dep):
+        bv = dep.best.version if dep.best else ''
+        iv = dep.installed.version if dep.installed else ''
+        status = {
+            PackageStatus.Unchanged: '',
+            PackageStatus.New: 'N',
+            PackageStatus.Updated: 'U',
+            PackageStatus.NotVisible: '~',
+        }[dep.status]
+        depcount = len(dep.best.affected_deep_deps)
+        return (status, dep.cps, iv, bv, str(depcount))
 
     def draw(self):
         pkg = self.app.current
         active = self._get_active_deps()
         inactive_count = len(pkg.deps) - len(active)
-        rows = [("Package", "Installed", "Best")]
-        for dep in active:
-            best = dep.get_package()
-            installed = dep.get_installed()
-            bv = best.version if best else ''
-            iv = installed.version if installed else ''
-            rows.append((dep.cps, iv, bv))
+        rows = [("S", "Package", "Installed", "Best", "Aff deps")]
+        rows.extend(map(self._get_row, active))
         for i, line in enumerate(tableize(rows)):
             # first row is header, so we do (i - 1)
             mode = curses.A_STANDOUT if (i - 1) == self.selected_index else 0
