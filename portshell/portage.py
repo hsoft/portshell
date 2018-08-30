@@ -1,4 +1,7 @@
 # Convenience layer over portage API
+import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from contextlib import contextmanager
 from enum import Enum
 
 import portage
@@ -6,6 +9,8 @@ from portage.dep import use_reduce, isvalidatom, dep_getkey, dep_getslot
 from portage.versions import catpkgsplit
 
 class Portage:
+    SETTINGS_LOCK = threading.Lock()
+
     @staticmethod
     def porttree():
         return portage.db['/']['porttree'].dbapi
@@ -35,16 +40,21 @@ class Portage:
     def system_use_flags():
         return set(portage.settings['USE'].split())
 
-    @staticmethod
-    def enabled_use_flags(cpv):
-        settings = Portage.porttree().settings
-        try:
+    @classmethod
+    @contextmanager
+    def acquire_settings(cls):
+        with cls.SETTINGS_LOCK:
+            settings = Portage.porttree().settings
             settings.unlock()
-            settings.setcpv(cpv, mydb=portage.portdb)
-            return set(portage.settings['PORTAGE_USE'].split())
-        finally:
+            yield settings
             settings.reset()
             settings.lock()
+
+    @staticmethod
+    def enabled_use_flags(cpv):
+        with Portage.acquire_settings() as settings:
+            settings.setcpv(cpv, mydb=portage.portdb)
+            return set(portage.settings['PORTAGE_USE'].split())
 
 
 def resolve_deps_anyof(deplist):
@@ -126,6 +136,7 @@ class PackageVersion:
         self.cpv = cpv
         self.cps = extract_cps(f'={cpv}')
         self._affected_deep_deps = None
+        self._affected_deep_deps_exec = None
         self._deps = None
         self._IUSE = None
 
@@ -159,10 +170,24 @@ class PackageVersion:
 
     @property
     def affected_deep_deps(self):
+        # This computation is called concurrently. Returns None if currently
+        # computing.
+        if not self.deps:
+            return set()
         if self._affected_deep_deps is None:
-            FILTER = {PackageStatus.New, PackageStatus.Updated}
-            self._affected_deep_deps = self._get_recursive_deps(
-                statuses=FILTER, seen=set())
+            if self._affected_deep_deps_exec is None:
+                self._affected_deep_deps_exec = ThreadPoolExecutor()
+                FILTER = {PackageStatus.New, PackageStatus.Updated}
+                self._affected_deep_deps_res = self._affected_deep_deps_exec.submit(
+                    self._get_recursive_deps,
+                    statuses=FILTER, seen=set())
+            try:
+                self._affected_deep_deps = self._affected_deep_deps_res.result(timeout=0.1)
+                self._affected_deep_deps_exec.shutdown()
+                self._affected_deep_deps_res = None
+                self._affected_deep_deps_exec = None
+            except TimeoutError:
+                return None
         return self._affected_deep_deps
 
     @property

@@ -68,8 +68,9 @@ class DependencyScreen(SelectableScreen):
             PackageStatus.Updated: 'U',
             PackageStatus.NotVisible: '~',
         }[dep.status]
-        depcount = len(dep.best.affected_deep_deps)
-        return (status, dep.cps, iv, bv, str(depcount))
+        deps = dep.best.affected_deep_deps
+        depcount = str(len(deps)) if deps is not None else '?'
+        return (status, dep.cps, iv, bv, depcount)
 
     def draw(self):
         pkg = self.app.current
