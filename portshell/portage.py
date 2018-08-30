@@ -132,11 +132,13 @@ class PackageStatus(Enum):
 
 
 class PackageVersion:
+    EXECUTOR = ThreadPoolExecutor()
+
     def __init__(self, cpv):
         self.cpv = cpv
         self.cps = extract_cps(f'={cpv}')
         self._affected_deep_deps = None
-        self._affected_deep_deps_exec = None
+        self._affected_deep_deps_res = None
         self._deps = None
         self._IUSE = None
 
@@ -172,20 +174,15 @@ class PackageVersion:
     def affected_deep_deps(self):
         # This computation is called concurrently. Returns None if currently
         # computing.
-        if not self.deps:
-            return set()
         if self._affected_deep_deps is None:
-            if self._affected_deep_deps_exec is None:
-                self._affected_deep_deps_exec = ThreadPoolExecutor()
+            if self._affected_deep_deps_res is None:
                 FILTER = {PackageStatus.New, PackageStatus.Updated}
-                self._affected_deep_deps_res = self._affected_deep_deps_exec.submit(
+                self._affected_deep_deps_res = self.EXECUTOR.submit(
                     self._get_recursive_deps,
                     statuses=FILTER, seen=set())
             try:
-                self._affected_deep_deps = self._affected_deep_deps_res.result(timeout=0.1)
-                self._affected_deep_deps_exec.shutdown()
+                self._affected_deep_deps = self._affected_deep_deps_res.result(timeout=0.01)
                 self._affected_deep_deps_res = None
-                self._affected_deep_deps_exec = None
             except TimeoutError:
                 return None
         return self._affected_deep_deps
