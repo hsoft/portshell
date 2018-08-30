@@ -45,6 +45,44 @@ class Portage:
             settings.lock()
 
 
+def resolve_deps_anyof(deplist):
+    """Dependency list from portage is a simple list of cpv... with a twist.
+
+    When the dependency list want "any packages among those", it will look
+    like this: ['a', '||', ['b', 'c']]
+
+    That means "a and (b or c)". Resolve this into either ['a', 'b'] or
+    ['a', 'c'].
+    """
+    for elem, next_elem in zip(deplist, deplist[1:]):
+        if not isinstance(elem, str):
+            continue
+        if elem == '||':
+            # first, try to find first installed
+            for x in next_elem:
+                if Portage.find_installed(x):
+                    yield x
+                    break
+            else:
+                # if none, try with first installable
+                for x in next_elem:
+                    if Portage.find_best(x):
+                        yield x
+                        break
+                else:
+                    # fallback on first of list
+                    yield next_elem[0]
+        else:
+            yield elem
+
+
+def deps_from_depstring(depstring, use_flags=None):
+    matchall = bool(use_flags)
+    use_flags = use_flags or []
+    all_deps = use_reduce(depstring, uselist=use_flags, matchall=matchall)
+    return list(resolve_deps_anyof(all_deps))
+
+
 class PackageVersion:
     def __init__(self, cpv):
         self.cpv = cpv
@@ -73,8 +111,8 @@ class PackageVersion:
         if self._deps is None:
             depstring = Portage.get_depstring(self.cpv)
             enabled_flags = Portage.enabled_use_flags(self.cpv)
-            all_deps = filter(isvalidatom, use_reduce(depstring, matchall=True, flat=True))
-            active_deps = set(use_reduce(depstring, uselist=enabled_flags, flat=True))
+            all_deps = deps_from_depstring(depstring)
+            active_deps = deps_from_depstring(depstring, use_flags=enabled_flags)
             deps = {Dependency(d, active=(d in active_deps)) for d in all_deps}
             self._deps = sorted(deps)
         return self._deps
