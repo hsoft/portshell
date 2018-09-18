@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from enum import Enum
 
 import portage
+import portage._sets
 from portage.dep import use_reduce, isvalidatom, dep_getkey, dep_getslot
 from portage.versions import catpkgsplit
 
@@ -12,12 +13,22 @@ class Portage:
     SETTINGS_LOCK = threading.Lock()
 
     @staticmethod
+    def trees():
+        return portage.db['/']
+
+    @staticmethod
     def porttree():
-        return portage.db['/']['porttree'].dbapi
+        return Portage.trees()['porttree'].dbapi
 
     @staticmethod
     def vartree():
-        return portage.db['/']['vartree'].dbapi
+        return Portage.trees()['vartree'].dbapi
+
+    @staticmethod
+    def sets():
+        config = portage._sets.load_default_config(
+            portage.settings, Portage.trees())
+        return config.getSets()
 
     @staticmethod
     def get_depstring(cpv):
@@ -28,13 +39,15 @@ class Portage:
     @staticmethod
     def find_best(atom):
         dbapi = Portage.porttree()
-        return dbapi.xmatch('bestmatch-visible', atom)
+        with Portage.acquire_settings():
+            return dbapi.xmatch('bestmatch-visible', atom)
 
     @staticmethod
     def find_installed(atom):
         dbapi = Portage.vartree()
-        matches = dbapi.match(atom)
-        return matches[0] if matches else None
+        with Portage.acquire_settings():
+            matches = dbapi.match(atom)
+        return matches[-1] if matches else None
 
     @staticmethod
     def system_use_flags():
@@ -182,8 +195,12 @@ class PackageVersion:
                 self._affected_deep_deps_res = self.EXECUTOR.submit(
                     self._get_recursive_deps,
                     statuses=FILTER, seen=set())
+                # When the executor is freshly started, we don't want to try
+                # fetching results. This method is likely called in batch and
+                # this can drag the app down.
+                return None
             try:
-                self._affected_deep_deps = self._affected_deep_deps_res.result(timeout=0.01)
+                self._affected_deep_deps = self._affected_deep_deps_res.result(timeout=0.001)
                 self._affected_deep_deps_res = None
             except TimeoutError:
                 return None
@@ -212,6 +229,22 @@ class PackageVersion:
     def version(self):
         _, _, v, r = catpkgsplit(self.cpv)
         return f'{v}-{r}'
+
+
+class World:
+    def __str__(self):
+        return '@world'
+
+    @property
+    def deps(self):
+        if getattr(self, '_deps', None) is None:
+            sets = Portage.sets()
+            atoms = sets['selected'].getAtoms()
+            deps = {Dependency(atom, active=True) for atom in atoms}
+            self._deps = sorted(deps)
+        return self._deps
+
+    IUSE = []
 
 
 class Dependency:

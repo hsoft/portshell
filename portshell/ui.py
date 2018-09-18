@@ -13,6 +13,15 @@ class Screen:
     def draw(self):
         raise NotImplementedError()
 
+    def draw_list(self, y, x, lines, attrmap=None):
+        attrmap = attrmap or {}
+        for i, line in enumerate(lines):
+            mode = attrmap.get(i, 0)
+            try:
+                self.stdscr.addstr(i + y, x, line, mode)
+            except curses.error:
+                return
+
     def interpret_keystroke(self, key, c):
         return False
 
@@ -71,18 +80,20 @@ class DependencyScreen(SelectableScreen):
         bv = dep.best.version if dep.best else ''
         iv = dep.installed.version if dep.installed else ''
         status = self.STATUS_DISPLAY[dep.status]
-        deps = dep.best.affected_deep_deps
-        depcount = str(len(deps)) if deps is not None else '?'
+        if bv:
+            deps = dep.best.affected_deep_deps
+            depcount = str(len(deps)) if deps is not None else '?'
+        else:
+            depcount = ''
         return (status, dep.cps, iv, bv, depcount)
 
     def draw(self):
         active = self._get_deps()
         rows = [("S", "Package", "Installed", "Best", "Aff deps")]
         rows.extend(map(self._get_row, active))
-        for i, line in enumerate(tableize(rows)):
-            # first row is header, so we do (i - 1)
-            mode = curses.A_STANDOUT if (i - 1) == self.selected_index else 0
-            self.stdscr.addstr(i + 2, 0, line, mode)
+        # first row is header, so we do + 1
+        attrmap = {self.selected_index + 1: curses.A_STANDOUT}
+        self.draw_list(2, 0, tableize(rows), attrmap=attrmap)
 
     def interpret_keystroke(self, key, c):
         if super().interpret_keystroke(key, c):
