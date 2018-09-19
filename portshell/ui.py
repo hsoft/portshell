@@ -13,15 +13,6 @@ class Screen:
     def draw(self):
         raise NotImplementedError()
 
-    def draw_list(self, y, x, lines, attrmap=None):
-        attrmap = attrmap or {}
-        for i, line in enumerate(lines):
-            mode = attrmap.get(i, 0)
-            try:
-                self.stdscr.addstr(i + y, x, line, mode)
-            except curses.error:
-                return
-
     def interpret_keystroke(self, key, c):
         return False
 
@@ -30,26 +21,64 @@ class SelectableScreen(Screen):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.selected_index = 0
+        self.offset = 0
+
+    def _adjust_offset(self):
+        height, *_ = self.list_coords()
+        count = self.selectable_item_count()
+        if count > height:
+            if self.selected_index - self.offset > height - 2:
+                self.offset = self.selected_index - height + 2
+            elif self.selected_index < self.offset:
+                self.offset = self.selected_index - 1
+            self.offset = max(min(self.offset, count - height), 0)
+
+    def draw_list(self, lines):
+        height, width, y, x = self.list_coords()
+        if self.offset > 0:
+            lines = ['...'] + lines[self.offset+1:]
+        if len(lines) > height:
+            del lines[height-1:]
+            lines.append('...')
+
+        attrmap = {self.selected_index - self.offset: curses.A_STANDOUT}
+        win = self.stdscr.subwin(height, width, y, x)
+        win.clear()
+        for i, line in enumerate(lines[:height]):
+            mode = attrmap.get(i, 0)
+            win.addstr(i, 0, line, mode)
+        win.refresh()
 
     def interpret_keystroke(self, key, c):
         if key == curses.KEY_DOWN:
             self.down()
+        elif key == curses.KEY_NPAGE:
+            self.down(10)
         elif key == curses.KEY_UP:
             self.up()
+        elif key == curses.KEY_PPAGE:
+            self.up(10)
         else:
             return False
         return True
 
+    def list_coords(self):
+        # (height, width, y, x)
+        # LINES - 3: two header lines, 1 footer line
+        return (curses.LINES - 3, curses.COLS, 2, 0)
+
     def selectable_item_count(self):
         return 0
 
-    def down(self):
-        if self.selected_index < self.selectable_item_count() - 1:
-            self.selected_index += 1
+    def down(self, count=1):
+        self.selected_index = min(
+            self.selected_index + count,
+            self.selectable_item_count() - 1)
+        self._adjust_offset()
 
-    def up(self):
-        if self.selected_index > 0:
-            self.selected_index -= 1
+    def up(self, count=1):
+        self.selected_index = max(self.selected_index - count, 0)
+        self._adjust_offset()
 
 
 class DependencyScreen(SelectableScreen):
@@ -91,9 +120,10 @@ class DependencyScreen(SelectableScreen):
         active = self._get_deps()
         rows = [("S", "Package", "Installed", "Best", "Aff deps")]
         rows.extend(map(self._get_row, active))
-        # first row is header, so we do + 1
-        attrmap = {self.selected_index + 1: curses.A_STANDOUT}
-        self.draw_list(2, 0, tableize(rows), attrmap=attrmap)
+        rows = list(tableize(rows))
+        self.stdscr.addstr(2, 0, rows[0])
+        del rows[0]
+        self.draw_list(rows)
 
     def interpret_keystroke(self, key, c):
         if super().interpret_keystroke(key, c):
@@ -108,6 +138,10 @@ class DependencyScreen(SelectableScreen):
         else:
             return False
         return True
+
+    def list_coords(self):
+        (h, w, y, x) = super().list_coords()
+        return (h - 1, w, y + 1, x)
 
     def selectable_item_count(self):
         return len(self._get_deps())
