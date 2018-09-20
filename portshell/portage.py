@@ -138,12 +138,12 @@ def extract_cps(atom):
 
 
 class PackageStatus(Enum):
-    Unchanged = 1
-    New = 2
-    Updated = 3
-    NotVisible = 4
+    Unchanged = ''
+    New = 'N'
+    Updated = 'U'
+    NotVisible = '~'
     # De-selected by use flags
-    Deselected = 5
+    Deselected = 'H'
 
 
 class PackageVersion:

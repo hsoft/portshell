@@ -90,13 +90,6 @@ class DependencyScreen(SelectableScreen):
         PackageStatus.Deselected,
     ]
     STATUS_ORDER_MAP = {v: i for i, v in enumerate(STATUS_ORDER)}
-    STATUS_DISPLAY = {
-        PackageStatus.Unchanged: '',
-        PackageStatus.New: 'N',
-        PackageStatus.Updated: 'U',
-        PackageStatus.NotVisible: '~',
-        PackageStatus.Deselected: 'H',
-    }
 
     def _get_deps(self):
         def sort_key(dep):
@@ -108,13 +101,12 @@ class DependencyScreen(SelectableScreen):
     def _get_row(self, dep):
         bv = dep.best.version if dep.best else ''
         iv = dep.installed.version if dep.installed else ''
-        status = self.STATUS_DISPLAY[dep.status]
         if bv:
             deps = dep.best.affected_deep_deps
             depcount = str(len(deps)) if deps is not None else '?'
         else:
             depcount = ''
-        return (status, dep.cps, iv, bv, depcount)
+        return (dep.status.value, dep.cps, iv, bv, depcount)
 
     def draw(self):
         active = self._get_deps()
