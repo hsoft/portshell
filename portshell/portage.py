@@ -64,6 +64,14 @@ class Portage:
             settings.lock()
 
     @staticmethod
+    def available_use_flags(cpv):
+        return Portage.porttree().aux_get(cpv, ['IUSE'])[0].split()
+
+    @staticmethod
+    def installed_use_flags(cpv):
+        return Portage.vartree().aux_get(cpv, ['USE'])[0].split()
+
+    @staticmethod
     def enabled_use_flags(cpv):
         with Portage.acquire_settings() as settings:
             settings.setcpv(cpv, mydb=portage.portdb)
@@ -141,6 +149,7 @@ class PackageStatus(Enum):
     Unchanged = ''
     New = 'N'
     Updated = 'U'
+    NeedsRebuild = 'R'
     NotVisible = '~'
     # De-selected by use flags
     Deselected = 'H'
@@ -168,12 +177,6 @@ class PackageVersion:
     def __str__(self):
         return self.cpv
 
-    def deps_affected_by_flag(self, flag):
-        depstring = Portage.get_depstring(self.cpv)
-        base_deps = set(filter(isvalidatom, use_reduce(depstring, flat=True)))
-        deps = set(filter(isvalidatom, use_reduce(depstring, uselist=[flag.name], flat=True)))
-        return sorted(map(Dependency, deps - base_deps))
-
     def _get_recursive_deps(self, statuses, seen):
         if self.cps in seen:
             return set()
@@ -185,13 +188,22 @@ class PackageVersion:
                 statuses, seen=(seen | {self.cps}))
         return result
 
+    def deps_affected_by_flag(self, flag):
+        depstring = Portage.get_depstring(self.cpv)
+        base_deps = set(filter(isvalidatom, use_reduce(depstring, flat=True)))
+        deps = set(filter(isvalidatom, use_reduce(depstring, uselist=[flag.name], flat=True)))
+        return sorted(map(Dependency, deps - base_deps))
+
+    def needs_rebuild(self):
+        return any(f.is_installed != f.is_enabled for f in self.IUSE)
+
     @property
     def affected_deep_deps(self):
         # This computation is called concurrently. Returns None if currently
         # computing.
         if self._affected_deep_deps is None:
             if self._affected_deep_deps_res is None:
-                FILTER = {PackageStatus.New, PackageStatus.Updated}
+                FILTER = {PackageStatus.New, PackageStatus.Updated, PackageStatus.NeedsRebuild}
                 self._affected_deep_deps_res = self.EXECUTOR.submit(
                     self._get_recursive_deps,
                     statuses=FILTER, seen=set())
@@ -220,9 +232,10 @@ class PackageVersion:
     @property
     def IUSE(self):
         if self._IUSE is None:
-            IUSE = Portage.porttree().aux_get(self.cpv, ['IUSE'])[0].split()
+            IUSE = Portage.available_use_flags(self.cpv)
             enabled_flags = Portage.enabled_use_flags(self.cpv)
-            self._IUSE = [Flag.from_iuse(f, enabled_flags) for f in IUSE]
+            installed_flags = Portage.installed_use_flags(self.cpv)
+            self._IUSE = [Flag.from_iuse(f, enabled_flags, installed_flags) for f in IUSE]
         return self._IUSE
 
     @property
@@ -280,23 +293,27 @@ class Dependency:
             return PackageStatus.New
         elif self.best.version != self.installed.version:
             return PackageStatus.Updated
+        elif self.installed.needs_rebuild():
+            return PackageStatus.NeedsRebuild
         else:
             return PackageStatus.Unchanged
 
 
 class Flag:
-    def __init__(self, name, is_defaulted, is_enabled):
+    def __init__(self, name, is_defaulted, is_enabled, is_installed):
         self.name = name
         self.is_defaulted = is_defaulted
         self.is_enabled = is_enabled
+        self.is_installed = is_installed
 
     @classmethod
-    def from_iuse(cls, iuse_str, enabled_flags):
+    def from_iuse(cls, iuse_str, enabled_flags, installed_flags):
         is_defaulted = iuse_str.startswith('+')
         if is_defaulted:
             iuse_str = iuse_str[1:]
         is_enabled = iuse_str in enabled_flags
-        return cls(iuse_str, is_defaulted, is_enabled)
+        is_installed = iuse_str in installed_flags
+        return cls(iuse_str, is_defaulted, is_enabled, is_installed)
 
     def __str__(self):
         return self.name

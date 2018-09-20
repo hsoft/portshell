@@ -86,6 +86,7 @@ class DependencyScreen(SelectableScreen):
         PackageStatus.NotVisible,
         PackageStatus.New,
         PackageStatus.Updated,
+        PackageStatus.NeedsRebuild,
         PackageStatus.Unchanged,
         PackageStatus.Deselected,
     ]
@@ -148,6 +149,9 @@ class UseFlagScreen(SelectableScreen):
             if i == self.selected_index:
                 mode |= curses.A_STANDOUT
             s = str(flag)
+            if flag.is_installed != flag.is_enabled:
+                sign = '+' if flag.is_enabled else '-'
+                s = f'{s} ({sign})'
             maxlen = max(len(s), maxlen)
             self.stdscr.addstr(i + 2, 0, s, mode)
         if pkg.IUSE:
