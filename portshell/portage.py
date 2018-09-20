@@ -258,14 +258,6 @@ class World:
     def __str__(self):
         return '@world'
 
-    def pulse_deps(self):
-        for d in self.deps:
-            if d.best is None:
-                continue
-            if not d.best.pulse_deps():
-                return False
-        return True
-
     @property
     def deps(self):
         if getattr(self, '_deps', None) is None:

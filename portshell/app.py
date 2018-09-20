@@ -40,8 +40,13 @@ class App:
     def pulse(self):
         # Instead of doing threading and having to deal with race conditions, we "pulse" small
         # units of work at each runloop iteration.
-        if self.current.pulse_deps():
-            time.sleep(0.1)
+        for d in self.current.deps:
+            if d.best is None:
+                continue
+            if not d.best.pulse_deps():
+                break
+        else:
+            time.sleep(0.01)
 
     def runloop(self):
         self.draw()
