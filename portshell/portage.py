@@ -157,14 +157,6 @@ class PackageStatus(Enum):
 class PackageVersion:
     CACHE = {}
 
-    def __new__(cls, cpv):
-        if cpv in cls.CACHE:
-            return cls.CACHE[cpv]
-        else:
-            result = super().__new__(cls)
-            cls.CACHE[cpv] = result
-            return result
-
     def __init__(self, cpv):
         self.cpv = cpv
         self.cps = extract_cps(f'={cpv}')
@@ -173,10 +165,19 @@ class PackageVersion:
         self._IUSE = None
 
     @classmethod
+    def get(cls, cpv):
+        if cpv in cls.CACHE:
+            return cls.CACHE[cpv]
+        else:
+            result = cls(cpv)
+            cls.CACHE[cpv] = result
+            return result
+
+    @classmethod
     def from_atom(cls, atom):
         cpv = Portage.find_best(atom)
         if cpv:
-            return cls(cpv)
+            return cls.get(cpv)
         else:
             return None
 
@@ -216,6 +217,8 @@ class PackageVersion:
         FILTER = {PackageStatus.New, PackageStatus.Updated, PackageStatus.NeedsRebuild}
         filtered_deps = (d for d in self.deps if d.active and d.status in FILTER)
         for d in filtered_deps:
+            if d.best is None:
+                continue
             if not d.best.pulse_deps():
                 return False
         # All deps finished work, ready to set affected_deep_deps
@@ -257,6 +260,8 @@ class World:
 
     def pulse_deps(self):
         for d in self.deps:
+            if d.best is None:
+                continue
             if not d.best.pulse_deps():
                 return False
         return True
@@ -279,7 +284,7 @@ class Dependency:
         self.active = active
         self.cps = extract_cps(atom)
         cpv = Portage.find_installed(atom)
-        self.installed = PackageVersion(cpv) if cpv else None
+        self.installed = PackageVersion.get(cpv) if cpv else None
         self.best = PackageVersion.from_atom(atom)
 
     def __str__(self):

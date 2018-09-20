@@ -19,7 +19,7 @@ def initialize():
     else:
         atom = Atom(q)
         mylist = Portage.porttree().match(atom)
-        return PackageVersion(portage.best(mylist))
+        return PackageVersion.get(portage.best(mylist))
 
 
 def main(stdscr, mainpkg):
