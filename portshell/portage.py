@@ -1,6 +1,5 @@
 # Convenience layer over portage API
 import threading
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from contextlib import contextmanager
 from enum import Enum
 
@@ -156,13 +155,20 @@ class PackageStatus(Enum):
 
 
 class PackageVersion:
-    EXECUTOR = ThreadPoolExecutor()
+    CACHE = {}
+
+    def __new__(cls, cpv):
+        if cpv in cls.CACHE:
+            return cls.CACHE[cpv]
+        else:
+            result = super().__new__(cls)
+            cls.CACHE[cpv] = result
+            return result
 
     def __init__(self, cpv):
         self.cpv = cpv
         self.cps = extract_cps(f'={cpv}')
-        self._affected_deep_deps = None
-        self._affected_deep_deps_res = None
+        self.affected_deep_deps = None
         self._deps = None
         self._IUSE = None
 
@@ -197,26 +203,27 @@ class PackageVersion:
     def needs_rebuild(self):
         return any(f.is_installed != f.is_enabled for f in self.IUSE)
 
-    @property
-    def affected_deep_deps(self):
-        # This computation is called concurrently. Returns None if currently
-        # computing.
-        if self._affected_deep_deps is None:
-            if self._affected_deep_deps_res is None:
-                FILTER = {PackageStatus.New, PackageStatus.Updated, PackageStatus.NeedsRebuild}
-                self._affected_deep_deps_res = self.EXECUTOR.submit(
-                    self._get_recursive_deps,
-                    statuses=FILTER, seen=set())
-                # When the executor is freshly started, we don't want to try
-                # fetching results. This method is likely called in batch and
-                # this can drag the app down.
-                return None
-            try:
-                self._affected_deep_deps = self._affected_deep_deps_res.result(timeout=0.001)
-                self._affected_deep_deps_res = None
-            except TimeoutError:
-                return None
-        return self._affected_deep_deps
+    def pulse_deps(self):
+        # Returns True if the work is completed and there's nothing left to be done.
+        # Returns False if there's still work to do, after having completed a small unit of work.
+        if self.affected_deep_deps is not None:
+            return True
+        # First work: have a deps list
+        if self._deps is None:
+            self.deps
+            return False
+        # For each active dep, recurse pulsing
+        FILTER = {PackageStatus.New, PackageStatus.Updated, PackageStatus.NeedsRebuild}
+        filtered_deps = (d for d in self.deps if d.active and d.status in FILTER)
+        for d in filtered_deps:
+            if not d.best.pulse_deps():
+                return False
+        # All deps finished work, ready to set affected_deep_deps
+        self.affected_deep_deps = set()
+        for dep in filtered_deps:
+            self.affected_deep_deps.add(dep.cps)
+            self.affected_deep_deps |= dep.best.affected_deep_deps
+        return True
 
     @property
     def deps(self):
@@ -247,6 +254,12 @@ class PackageVersion:
 class World:
     def __str__(self):
         return '@world'
+
+    def pulse_deps(self):
+        for d in self.deps:
+            if not d.best.pulse_deps():
+                return False
+        return True
 
     @property
     def deps(self):
